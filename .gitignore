@@ -1,4 +1,4 @@
 .env
-credentials.json
+creds.json
 *.pyc
 __pycache__/

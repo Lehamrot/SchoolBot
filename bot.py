@@ -18,22 +18,77 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
 
-
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Google Sheets Authentication
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+import os
+import json
+from oauth2client.service_account import ServiceAccountCredentials
+
+# Google Sheets Authentication - Improved version
 try:
-    creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", scope)
-    client = gspread.authorize(creds)
-    student_sheet = client.open("students").sheet1
-    teacher_sheet = client.open("teachers").sheet1
-    results_sheet = client.open("resultsnfeedback").sheet1
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    
+    # Get credentials from environment variable
+    creds_json = os.environ.get("GOOGLE_CREDS")
+    if not creds_json:
+        raise ValueError("GOOGLE_CREDS environment variable not set")
+    
+    creds_dict = json.loads(creds_json)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
+    # Add retry mechanism for connection issues
+    client = gspread.Client(auth=creds)
+    client.session = gspread.httpsession.HTTPSession(timeout=60)
+    client.login()  # Explicit login
+    
+    # Test connection immediately
+    try:
+        client.list_spreadsheet_files()
+    except Exception as e:
+        logger.error(f"Failed to list spreadsheets: {e}")
+        raise
+
 except Exception as e:
-    logger.error(f"❌ Error accessing Google Sheets: {e}")
+    logger.error(f"Google Sheets authentication failed: {e}")
     raise
+
+
+def get_sheet(client, sheet_name):
+    try:
+        sheet = client.open(sheet_name).sheet1
+        # Test access
+        sheet.get_all_records()
+        return sheet
+    except gspread.SpreadsheetNotFound:
+        logger.error(f"Spreadsheet '{sheet_name}' not found. Check the name and sharing permissions.")
+        raise
+    except APIError as e:
+        logger.error(f"Google API error accessing '{sheet_name}': {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error accessing '{sheet_name}': {e}")
+        raise
+
+# Then initialize your sheets like this:
+try:
+    student_sheet = get_sheet(client, "students")
+    teacher_sheet = get_sheet(client, "teachers")
+    results_sheet = get_sheet(client, "resultsnfeedback")
+except Exception as e:
+    logger.critical("Failed to initialize sheets. Bot cannot start.")
+    raise
+
+# Authenticate with Google Sheets
+client = gspread.authorize(creds)
+student_sheet = client.open("students").sheet1
+teacher_sheet = client.open("teachers").sheet1
+results_sheet = client.open("resultsnfeedback").sheet1
 
 # Cache for user data
 USER_CACHE = {}
