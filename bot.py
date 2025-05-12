@@ -39,7 +39,7 @@ try:
     if not creds_json:
         raise ValueError("GOOGLE_CREDS environment variable not set")
     
-    creds_dict = json.loads(creds_json)
+    creds_dict = json.load(creds_json)
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     
     # Add retry mechanism for connection issues
