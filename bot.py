@@ -9,6 +9,7 @@ from telegram import ReplyKeyboardRemove
 from httpx import ConnectTimeout
 from debug_utils import debug_state_transition
 import os
+import json
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -23,9 +24,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Google Sheets Authentication
-import os
-import json
-from oauth2client.service_account import ServiceAccountCredentials
+
+from google.oauth2 import service_account
 
 # Google Sheets Authentication - Improved version
 try:
@@ -40,7 +40,7 @@ try:
         raise ValueError("GOOGLE_CREDS environment variable not set")
     
     creds_dict = json.loads(creds_json)
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
     
     # Add retry mechanism for connection issues
     client = gspread.Client(auth=creds)
