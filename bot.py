@@ -4,13 +4,16 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKe
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, CallbackQueryHandler, CallbackContext, filters
 import gspread
 from gspread.exceptions import APIError
-from oauth2client.service_account import ServiceAccountCredentials
 from telegram import ReplyKeyboardRemove
 from httpx import ConnectTimeout
 from debug_utils import debug_state_transition
 import os
 import json
 from dotenv import load_dotenv
+import gspread
+import os
+import json
+from google.oauth2 import service_account
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,41 +27,33 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Google Sheets Authentication
-
-from google.oauth2 import service_account
-
-# Google Sheets Authentication - Improved version
 try:
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
-    
+
     # Get credentials from environment variable
     creds_json = os.environ.get("GOOGLE_CREDS")
     if not creds_json:
         raise ValueError("GOOGLE_CREDS environment variable not set")
-    
+
     creds_dict = json.loads(creds_json)
-    # ✅ Fix: Replace escaped \n in private_key
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-    
+    # Replace escaped newlines
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
     creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
-    
-    # Add retry mechanism for connection issues
-    client = gspread.Client(auth=creds)
-    client.session = gspread.httpsession.HTTPSession(timeout=60)
-    client.login()  # Explicit login
-    
-    # Test connection immediately
-    try:
-        client.list_spreadsheet_files()
-    except Exception as e:
-        logger.error(f"Failed to list spreadsheets: {e}")
-        raise
+
+    # Authenticate gspread client
+    client = gspread.authorize(creds)
+
+    # Test connection
+    client.openall()  # Or any small safe call to verify
 
 except Exception as e:
+    import logging
+    logging.basicConfig(level=logging.ERROR)
+    logger = logging.getLogger(__name__)
     logger.error(f"Google Sheets authentication failed: {e}")
     raise
 
